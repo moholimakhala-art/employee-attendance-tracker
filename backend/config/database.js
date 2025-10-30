@@ -6,33 +6,32 @@ console.log('User:', process.env.DB_USER);
 console.log('Database:', process.env.DB_NAME);
 console.log('Port:', process.env.DB_PORT);
 
-// Create MySQL connection
-const connection = mysql.createConnection({
+// Create a connection pool instead of single connection
+const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'railway',
   port: process.env.DB_PORT || 3306,
-  connectTimeout: 60000,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
   acquireTimeout: 60000,
   timeout: 60000,
   reconnect: true
 });
 
-// Connect to MySQL
-connection.connect((err) => {
+// Test the connection on startup
+pool.getConnection((err, connection) => {
   if (err) {
     console.error('❌ Error connecting to MySQL:', err.message);
     console.error('Error code:', err.code);
-    console.error('Error fatal:', err.fatal);
     return;
   }
+  
   console.log('✅ Connected to MySQL database on Railway');
-  initializeDatabase();
-});
-
-function initializeDatabase() {
-  // Create table if it doesn't exist
+  
+  // Initialize database tables
   const createTableSQL = `
     CREATE TABLE IF NOT EXISTS Attendance (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,12 +44,30 @@ function initializeDatabase() {
   `;
   
   connection.query(createTableSQL, (err) => {
+    connection.release(); // Always release connection back to pool
+    
     if (err) {
       console.error('❌ Error creating table:', err);
       return;
     }
     console.log('✅ Attendance table ready');
   });
-}
+});
 
-module.exports = connection;
+// Handle pool errors
+pool.on('error', (err) => {
+  console.error('❌ MySQL Pool Error:', err);
+});
+
+// Handle acquisition timeout
+pool.on('acquire', (connection) => {
+  console.log('🔗 Connection %d acquired', connection.threadId);
+});
+
+// Handle connection release
+pool.on('release', (connection) => {
+  console.log('🔗 Connection %d released', connection.threadId);
+});
+
+// Export the pool instead of single connection
+module.exports = pool.promise(); // Use promise-based API for better async handling

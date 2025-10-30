@@ -43,131 +43,82 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Test database connection route
-app.get('/api/test-db', (req, res) => {
-  const db = require('./models/database');
-  
-  db.query('SELECT 1 + 1 AS solution', (err, results) => {
-    if (err) {
-      console.error('Database test failed:', err);
-      return res.status(500).json({ 
-        error: 'Database connection failed', 
-        details: err.message 
-      });
-    }
+// Test database connection route (using promises)
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const db = require('./models/database');
+    
+    const [results] = await db.execute('SELECT 1 + 1 AS solution');
+    
     res.json({ 
       message: 'Database connection successful!',
       solution: results[0].solution,
       database: process.env.DB_NAME,
       host: process.env.DB_HOST
     });
-  });
+  } catch (err) {
+    console.error('Database test failed:', err);
+    res.status(500).json({ 
+      error: 'Database connection failed', 
+      details: err.message 
+    });
+  }
 });
 
-// NEW: Database details endpoint
-app.get('/api/db-details', (req, res) => {
-  const db = require('./models/database');
-  
-  // First test basic connection
-  db.query('SELECT 1 + 1 AS solution', (err, testResults) => {
-    if (err) {
-      console.error('Database connection failed:', err);
-      return res.status(500).json({ 
-        error: 'Database connection failed',
-        details: err.message,
-        config: {
-          host: process.env.DB_HOST,
-          database: process.env.DB_NAME,
-          port: process.env.DB_PORT
-        }
-      });
-    }
+// Database details endpoint (using promises)
+app.get('/api/db-details', async (req, res) => {
+  try {
+    const db = require('./models/database');
+    
+    // Test basic connection
+    const [testResults] = await db.execute('SELECT 1 + 1 AS solution');
     
     // Check if Attendance table exists
-    const tableCheckSQL = `
-      SELECT TABLE_NAME 
-      FROM information_schema.TABLES 
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'Attendance'
-    `;
+    const [tableResults] = await db.execute(
+      `SELECT TABLE_NAME 
+       FROM information_schema.TABLES 
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'Attendance'`,
+      [process.env.DB_NAME]
+    );
     
-    db.query(tableCheckSQL, [process.env.DB_NAME], (err, tableResults) => {
-      if (err) {
-        console.error('Table check failed:', err);
-        return res.status(500).json({ 
-          error: 'Table check failed',
-          details: err.message
-        });
-      }
-      
-      const attendanceExists = tableResults.length > 0;
-      let recordCount = 0;
-      
-      if (attendanceExists) {
-        // Get record count
-        db.query('SELECT COUNT(*) as count FROM Attendance', (err, countResults) => {
-          if (err) {
-            console.error('Count query failed:', err);
-            // Still return success but with count error
-            res.json({
-              database: {
-                host: process.env.DB_HOST,
-                name: process.env.DB_NAME,
-                port: process.env.DB_PORT,
-                user: process.env.DB_USER
-              },
-              connection: {
-                successful: true,
-                testResult: testResults[0].solution
-              },
-              tables: {
-                attendanceExists: true,
-                totalRecords: 'unknown (count failed)'
-              },
-              status: 'Database connected but count query failed'
-            });
-          } else {
-            recordCount = countResults[0].count;
-            res.json({
-              database: {
-                host: process.env.DB_HOST,
-                name: process.env.DB_NAME,
-                port: process.env.DB_PORT,
-                user: process.env.DB_USER
-              },
-              connection: {
-                successful: true,
-                testResult: testResults[0].solution
-              },
-              tables: {
-                attendanceExists: true,
-                totalRecords: recordCount
-              },
-              status: 'Fully connected and operational'
-            });
-          }
-        });
-      } else {
-        // Table doesn't exist
-        res.json({
-          database: {
-            host: process.env.DB_HOST,
-            name: process.env.DB_NAME,
-            port: process.env.DB_PORT,
-            user: process.env.DB_USER
-          },
-          connection: {
-            successful: true,
-            testResult: testResults[0].solution
-          },
-          tables: {
-            attendanceExists: false,
-            totalRecords: 0
-          },
-          status: 'Database connected but Attendance table not found'
-        });
+    const attendanceExists = tableResults.length > 0;
+    let recordCount = 0;
+    
+    if (attendanceExists) {
+      const [countResults] = await db.execute('SELECT COUNT(*) as count FROM Attendance');
+      recordCount = countResults[0].count;
+    }
+    
+    res.json({
+      database: {
+        host: process.env.DB_HOST,
+        name: process.env.DB_NAME,
+        port: process.env.DB_PORT,
+        user: process.env.DB_USER
+      },
+      connection: {
+        successful: true,
+        testResult: testResults[0].solution
+      },
+      tables: {
+        attendanceExists: attendanceExists,
+        totalRecords: recordCount
+      },
+      status: attendanceExists ? 'Fully connected and operational' : 'Database connected but Attendance table not found'
+    });
+    
+  } catch (err) {
+    console.error('Database details error:', err);
+    res.status(500).json({ 
+      error: 'Database connection failed',
+      details: err.message,
+      config: {
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        port: process.env.DB_PORT
       }
     });
-  });
+  }
 });
 
 // Routes
@@ -210,15 +161,7 @@ app.use('*', (req, res) => {
   res.status(404).json({ 
     error: 'Endpoint not found',
     path: req.originalUrl,
-    method: req.method,
-    availableEndpoints: [
-      'GET /',
-      'GET /health',
-      'GET /api/test-db',
-      'GET /api/db-details',
-      'GET /api/attendance',
-      'POST /api/attendance'
-    ]
+    method: req.method
   });
 });
 
