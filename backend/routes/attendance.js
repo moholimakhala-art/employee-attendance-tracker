@@ -2,6 +2,24 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models/database');
 
+// Add CORS headers specifically for attendance routes
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'https://employee-attendance-tracker-1-ocde.onrender.com');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+});
+
+// Handle OPTIONS preflight for attendance routes
+router.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', 'https://employee-attendance-tracker-1-ocde.onrender.com');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(200).send();
+});
+
 // POST - Add new attendance record
 router.post('/', (req, res) => {
   console.log('Received POST request:', req.body);
@@ -24,7 +42,7 @@ router.post('/', (req, res) => {
   
   db.query(sql, [employeeName, employeeID, date, status], (err, results) => {
     if (err) {
-      console.error('MySQL Database error:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to save attendance record' });
     }
     console.log('Record saved with ID:', results.insertId);
@@ -42,7 +60,7 @@ router.get('/', (req, res) => {
   
   db.query(sql, (err, results) => {
     if (err) {
-      console.error('MySQL Database error:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to fetch attendance records' });
     }
     console.log(`Returning ${results.length} records`);
@@ -59,7 +77,7 @@ router.delete('/:id', (req, res) => {
   
   db.query(sql, [id], (err, results) => {
     if (err) {
-      console.error('MySQL Database error:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to delete record' });
     }
     if (results.affectedRows === 0) {
@@ -85,7 +103,7 @@ router.get('/search', (req, res) => {
   
   db.query(sql, [`%${query}%`, `%${query}%`], (err, results) => {
     if (err) {
-      console.error('MySQL Database error:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ error: 'Search failed' });
     }
     console.log(`Search returned ${results.length} records`);
@@ -106,33 +124,11 @@ router.get('/filter', (req, res) => {
   
   db.query(sql, [date], (err, results) => {
     if (err) {
-      console.error('MySQL Database error:', err);
+      console.error('Database error:', err);
       return res.status(500).json({ error: 'Filter failed' });
     }
     console.log(`Filter returned ${results.length} records`);
     res.json(results);
-  });
-});
-
-// Debug route to view database info
-router.get('/debug', (req, res) => {
-  const sql = `SELECT * FROM Attendance ORDER BY id DESC`;
-  
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('MySQL Database error:', err);
-      return res.status(500).json({ error: 'Failed to fetch records' });
-    }
-    
-    res.json({
-      totalRecords: results.length,
-      records: results,
-      databaseInfo: {
-        type: 'MySQL',
-        database: 'employee_attendance',
-        table: 'Attendance'
-      }
-    });
   });
 });
 
