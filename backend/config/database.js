@@ -1,6 +1,6 @@
 const mysql = require('mysql2');
 
-console.log('Database Configuration:');
+console.log('🔧 Database Configuration:');
 console.log('Host:', process.env.DB_HOST);
 console.log('User:', process.env.DB_USER);
 console.log('Database:', process.env.DB_NAME);
@@ -19,7 +19,7 @@ const connection = mysql.createConnection({
   reconnect: true
 });
 
-// Connect to MySQL with better error handling
+// Connect to MySQL
 connection.connect((err) => {
   if (err) {
     console.error('❌ Error connecting to MySQL:', err.message);
@@ -52,15 +52,5 @@ function initializeDatabase() {
     console.log('✅ Attendance table ready');
   });
 }
-
-// Handle connection errors
-connection.on('error', (err) => {
-  console.error('❌ Database error:', err);
-  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-    console.log('Database connection was lost. Attempting to reconnect...');
-  } else {
-    throw err;
-  }
-});
 
 module.exports = connection;
