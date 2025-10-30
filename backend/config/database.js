@@ -1,21 +1,33 @@
 const mysql = require('mysql2');
 
-// Create MySQL connection using environment variables
+console.log('Database Configuration:');
+console.log('Host:', process.env.DB_HOST);
+console.log('User:', process.env.DB_USER);
+console.log('Database:', process.env.DB_NAME);
+console.log('Port:', process.env.DB_PORT);
+
+// Create MySQL connection
 const connection = mysql.createConnection({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'employee_attendance',
-  port: process.env.DB_PORT || 3306
+  database: process.env.DB_NAME || 'railway',
+  port: process.env.DB_PORT || 3306,
+  connectTimeout: 60000,
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true
 });
 
-// Connect to MySQL
+// Connect to MySQL with better error handling
 connection.connect((err) => {
   if (err) {
-    console.error('Error connecting to MySQL:', err.message);
+    console.error('❌ Error connecting to MySQL:', err.message);
+    console.error('Error code:', err.code);
+    console.error('Error fatal:', err.fatal);
     return;
   }
-  console.log('Connected to MySQL database on Railway');
+  console.log('✅ Connected to MySQL database on Railway');
   initializeDatabase();
 });
 
@@ -34,11 +46,21 @@ function initializeDatabase() {
   
   connection.query(createTableSQL, (err) => {
     if (err) {
-      console.error('Error creating table:', err);
+      console.error('❌ Error creating table:', err);
       return;
     }
-    console.log('Attendance table ready');
+    console.log('✅ Attendance table ready');
   });
 }
+
+// Handle connection errors
+connection.on('error', (err) => {
+  console.error('❌ Database error:', err);
+  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+    console.log('Database connection was lost. Attempting to reconnect...');
+  } else {
+    throw err;
+  }
+});
 
 module.exports = connection;
